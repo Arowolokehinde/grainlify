@@ -132,8 +132,8 @@ mod monitoring {
         pub last_operation: u64,
         pub total_operations: u64,
         pub contract_version: String,
-    }
 
+    }
     // Data: Analytics
     #[contracttype]
     #[derive(Clone, Debug)]
@@ -1125,6 +1125,34 @@ impl BountyEscrowContract {
         monitoring::get_state_snapshot(&env)
     }
 
+    pub fn add_participant(env: Env, bounty_id:u64, user:Address){
+        let mut participants:Vec<Address>=env.storage.instance().get(&DataKey::Escrow(bounty_id).unwrap_or(Vec::new(env)));
+        participants.push_back(user.clone());
+
+        env.storage().instance().set(&DataKey::Escrow(bounty_id), &participants);
+
+        let count = env.storage.instance.get(&DataKey::Escrow(bounty_id)).unwrap_or(Vec::new(env)).len();
+
+
+
+    }
+
+    pub fn get_filtered_participants(env:&Env, bounty_id:u64, start: u32, end: u32)->Vec<Address>{
+        let participants :Vec<Address> = env.storage().instance().get(&DataKey::Escrow(bounty_id).unwrap_or(Vec::new(env)));
+
+        let mut result: Vec<Address> = Vec::new(env);
+     et mut i = start;
+    let max = participants.len();
+
+    let mut count = 0;
+    while i < end && i < max {
+        result.push_back(participants.get(i).unwrap());
+        i += 1;
+        count += 1;
+
+    }
+    resutl
+}
     fn order_batch_lock_items(env: &Env, items: &Vec<LockFundsItem>) -> Vec<LockFundsItem> {
         let mut ordered: Vec<LockFundsItem> = Vec::new(env);
         for item in items.iter() {

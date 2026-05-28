@@ -648,27 +648,8 @@ pub enum ContractError {
     // Token Allowlist Errors (1100-1199)
     // =========================================================================
 
-    /// Token is not on the allowlist.
-    ///
-    /// This error occurs when a program initialization is attempted with a
-    /// token contract address that has not been added to the contract's
-    /// token allowlist. When the allowlist is non-empty, only explicitly
-    /// permitted tokens may be used.
-    ///
-    /// Resolution: ask the contract admin to add the token via
-    /// `add_allowed_token`, or use a token that is already on the list.
     TokenNotAllowed = 1100,
-
-    /// Token is already on the allowlist.
-    ///
-    /// This error occurs when attempting to add a token that is already
-    /// present in the allowlist.
     TokenAlreadyAllowed = 1101,
-
-    /// Token is not on the allowlist and cannot be removed.
-    ///
-    /// This error occurs when attempting to remove a token that is not
-    /// present in the allowlist.
     TokenNotInAllowlist = 1102,
 
     // =================================================================
@@ -676,16 +657,64 @@ pub enum ContractError {
     // Multisig Admin Op Errors (1300-1399)
     // =========================================================================
 
-    PendingOpExists = 1300,
-    NoPendingOp = 1301,
-    PendingOpExpired = 1302,
-    AlreadyApproved = 1303,
-    NotASigner = 1304,
-    PayloadMismatch = 1305,
-    InsufficientApprovals = 1306,
-    InvalidMultisigConfig = 1307,
-=
+    AdminRotationInProgress = 1200,
+    NoAdminRotationInProgress = 1201,
+    InvalidAdminRotationState = 1202,
+    ControllerRotationInProgress = 1203,
+    NoControllerRotationInProgress = 1204,
+    InvalidControllerRotationState = 1205,
+    RoleTransitionExpired = 1206,
+    InvalidRoleProposal = 1207,
+    RoleRotationNotAllowed = 1208,
+
+    // =========================================================================
+    // Idempotency Key Errors (1300-1399)
+    // =========================================================================
+
+    /// Duplicate idempotency key — already used and still within TTL.
+    DuplicateIdempotencyKey = 1300,
+
+    /// Expired idempotency key — TTL has passed.
+    ExpiredIdempotencyKey = 1301,
 }
+
+#[soroban_sdk::contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum BatchPayoutError {
+    NotInitialized = 3100,
+    Paused = 3101,
+    DisputeOpen = 3102,
+    Unauthorized = 3103,
+    LengthMismatch = 3104,
+    EmptyBatch = 3105,
+    ZeroAmount = 3106,
+    AmountOverflow = 3107,
+    SpendLimitExceeded = 3108,
+    InsufficientBalance = 3109,
+    CircuitBreakerOpen = 3110,
+    DuplicateRecipient = 3111,
+    FeeConsumesAmount = 3112,
+}
+
+impl BatchPayoutError {
+    pub fn description(self) -> &'static str {
+        match self {
+            BatchPayoutError::NotInitialized => "Program not initialized",
+            BatchPayoutError::Paused => "Funds Paused",
+            BatchPayoutError::DisputeOpen => "Payout blocked: dispute open",
+            BatchPayoutError::Unauthorized => "Unauthorized",
+            BatchPayoutError::LengthMismatch => "Recipients and amounts vectors must have the same length",
+            BatchPayoutError::EmptyBatch => "Cannot process empty batch",
+            BatchPayoutError::ZeroAmount => "All amounts must be greater than zero",
+            BatchPayoutError::AmountOverflow => "Payout amount overflow",
+            BatchPayoutError::SpendLimitExceeded => "Spend threshold exceeded",
+            BatchPayoutError::InsufficientBalance => "Insufficient balance",
+            BatchPayoutError::CircuitBreakerOpen => "Circuit breaker is OPEN",
+            BatchPayoutError::DuplicateRecipient => "Duplicate recipient in batch",
+            BatchPayoutError::FeeConsumesAmount => "Payout fee consumes entire payout",
+        }
+    }
 
 impl ContractError {
     /// Returns a human-readable description of the error.
@@ -812,7 +841,7 @@ impl ContractError {
             ContractError::TokenNotAllowed => "Token is not on the allowlist",
             ContractError::TokenAlreadyAllowed => "Token is already on the allowlist",
             ContractError::TokenNotInAllowlist => "Token is not on the allowlist and cannot be removed",
-            
+
             // Role Management Errors
             ContractError::AdminRotationInProgress => "Admin rotation already in progress",
             ContractError::NoAdminRotationInProgress => "No admin rotation in progress",
@@ -823,21 +852,10 @@ impl ContractError {
             ContractError::RoleTransitionExpired => "Role transition period expired",
             ContractError::InvalidRoleProposal => "Invalid role proposal",
             ContractError::RoleRotationNotAllowed => "Role rotation not allowed",
-            
-            // Release Trigger / Schedule Errors
-            ContractError::ReleaseTriggerFailed => "Release trigger failed",
-            ContractError::NoSchedulesDue => "No schedules are due for release",
-            ContractError::DeterminismViolation => "Determinism violation detected",
-            // Multisig Admin Op Errors
-            ContractError::PendingOpExists => "A pending admin operation already exists",
-            ContractError::NoPendingOp => "No pending admin operation found",
-            ContractError::PendingOpExpired => "Pending admin operation has expired",
-            ContractError::AlreadyApproved => "Signer has already approved",
-            ContractError::NotASigner => "Caller is not a configured signer",
-            ContractError::PayloadMismatch => "Payload hash does not match pending operation",
-            ContractError::InsufficientApprovals => "Insufficient approvals to execute",
-            ContractError::InvalidMultisigConfig => "Invalid multisig configuration",
 
+            // Idempotency Key Errors
+            ContractError::DuplicateIdempotencyKey => "Idempotency key already used",
+            ContractError::ExpiredIdempotencyKey => "Idempotency key has expired",
         }
     }
     

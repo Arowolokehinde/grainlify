@@ -1008,10 +1008,9 @@ fn test_invalid_role_proposal() {
     client.propose_admin(&admin);
 }
 
-/// Test that non-admin cannot call update_rate_limit_config.
 #[test]
 #[should_panic]
-fn test_update_rate_limit_config_non_admin_panics() {
+fn test_update_rate_limit_config_requires_admin() {
     let env = Env::default();
     let contract_id = env.register_contract(None, ProgramEscrowContract);
     let client = ProgramEscrowContractClient::new(&env, &contract_id);
@@ -1020,6 +1019,7 @@ fn test_update_rate_limit_config_non_admin_panics() {
     let non_admin = Address::generate(&env);
 
     env.mock_all_auths();
+    client.initialize_contract(&admin);
 
     client.set_admin(&admin);
 
@@ -4119,7 +4119,7 @@ fn test_release_paused_blocks_single_payout() {
     let env = Env::default();
     let (client, _admin, _token, _token_admin) = setup_program(&env, 1_000);
 
-    client.set_paused(&None, &Some(true), &None, &None);
+    client.set_paused(&None, &Some(true), &None, &None, &None);
 
     let recipient = Address::generate(&env);
     client.single_payout(&recipient, &100,
@@ -4134,7 +4134,7 @@ fn test_release_paused_blocks_batch_payout() {
     let env = Env::default();
     let (client, _admin, _token, _token_admin) = setup_program(&env, 1_000);
 
-    client.set_paused(&None, &Some(true), &None, &None);
+    client.set_paused(&None, &Some(true), &None, &None, &None);
 
     let r1 = Address::generate(&env);
     client.batch_payout(
@@ -4151,7 +4151,7 @@ fn test_lock_paused_blocks_lock_program_funds() {
     let env = Env::default();
     let (client, _admin, _token, _token_admin) = setup_program(&env, 0);
 
-    client.set_paused(&Some(true), &None, &None, &None);
+    client.set_paused(&Some(true), &None, &None, &None, &None);
     client.lock_program_funds(&500);
 }
 
@@ -4161,7 +4161,7 @@ fn test_lock_paused_does_not_block_single_payout() {
     let env = Env::default();
     let (client, _admin, _token, _token_admin) = setup_program(&env, 1_000);
 
-    client.set_paused(&Some(true), &None, &None, &None);
+    client.set_paused(&Some(true), &None, &None, &None, &None);
 
     let recipient = Address::generate(&env);
     let data = client.single_payout(&recipient, &200,
@@ -4176,7 +4176,7 @@ fn test_release_paused_does_not_block_lock() {
     let env = Env::default();
     let (client, _admin, _token, _token_admin) = setup_program(&env, 0);
 
-    client.set_paused(&None, &Some(true), &None, &None);
+    client.set_paused(&None, &Some(true), &None, &None, &None);
 
     let data = client.lock_program_funds(&300);
     assert_eq!(data.remaining_balance, 300);
@@ -4188,14 +4188,14 @@ fn test_unpause_restores_single_payout() {
     let env = Env::default();
     let (client, _admin, _token, _token_admin) = setup_program(&env, 1_000);
 
-    client.set_paused(&None, &Some(true), &None, &None);
+    client.set_paused(&None, &Some(true), &None, &None, &None);
     assert!(client
         .try_single_payout(&Address::generate(&env), &100,
     &None
 )
         .is_err());
 
-    client.set_paused(&None, &Some(false), &None, &None);
+    client.set_paused(&None, &Some(false), &None, &None, &None);
     let data = client.single_payout(&Address::generate(&env), &100,
     &None
 );
@@ -4208,7 +4208,7 @@ fn test_unpause_restores_batch_payout() {
     let env = Env::default();
     let (client, _admin, _token, _token_admin) = setup_program(&env, 1_000);
 
-    client.set_paused(&None, &Some(true), &None, &None);
+    client.set_paused(&None, &Some(true), &None, &None, &None);
     let r1 = Address::generate(&env);
     assert!(client
         .try_batch_payout(
@@ -4219,7 +4219,7 @@ fn test_unpause_restores_batch_payout() {
 )
         .is_err());
 
-    client.set_paused(&None, &Some(false), &None, &None);
+    client.set_paused(&None, &Some(false), &None, &None, &None);
     let data = client.batch_payout(
         &soroban_sdk::vec![&env, r1],
         &soroban_sdk::vec![&env, 100i128],
@@ -4236,7 +4236,7 @@ fn test_pause_state_changed_v2_event_on_pause() {
 
     env.ledger().with_mut(|li| li.timestamp = 99_999);
 
-    client.set_paused(&None, &Some(true), &None, &None);
+    client.set_paused(&None, &Some(true), &None, &None, &None);
 
     // Find the PauseStateChangedV2 event
     let events = env.events().all();
@@ -4277,10 +4277,10 @@ fn test_pause_state_changed_v2_previous_paused_on_unpause() {
     let (client, _admin, _token, _token_admin) = setup_program(&env, 0);
 
     // First pause
-    client.set_paused(&None, &Some(true), &None, &None);
+    client.set_paused(&None, &Some(true), &None, &None, &None);
 
     // Then unpause — previous_paused should be true
-    client.set_paused(&None, &Some(false), &None, &None);
+    client.set_paused(&None, &Some(false), &None, &None, &None);
 
     let events = env.events().all();
     // Get the last PauseStateChangedV2 event (the unpause one)
@@ -4318,7 +4318,7 @@ fn test_all_flags_paused_blocks_all_operations() {
     let env = Env::default();
     let (client, _admin, _token, _token_admin) = setup_program(&env, 1_000);
 
-    client.set_paused(&Some(true), &Some(true), &Some(true), &None);
+    client.set_paused(&Some(true), &Some(true), &Some(true), &None, &None);
 
     assert!(
         client.try_lock_program_funds(&100).is_err(),
@@ -4351,10 +4351,10 @@ fn test_partial_unpause_preserves_other_flags() {
     let env = Env::default();
     let (client, _admin, _token, _token_admin) = setup_program(&env, 1_000);
 
-    client.set_paused(&Some(true), &Some(true), &Some(true), &None);
+    client.set_paused(&Some(true), &Some(true), &Some(true), &None, &None);
 
     // Only unpause release
-    client.set_paused(&None, &Some(false), &None, &None);
+    client.set_paused(&None, &Some(false), &None, &None, &None);
 
     let flags = client.get_pause_flags();
     assert!(flags.lock_paused, "lock_paused must remain true");
@@ -4371,7 +4371,7 @@ fn test_read_only_queries_unaffected_by_pause() {
     let env = Env::default();
     let (client, _admin, _token, _token_admin) = setup_program(&env, 500);
 
-    client.set_paused(&Some(true), &Some(true), &Some(true), &None);
+    client.set_paused(&Some(true), &Some(true), &Some(true), &None, &None);
 
     let info = client.get_program_info();
     assert_eq!(info.remaining_balance, 500);
@@ -4387,7 +4387,7 @@ fn test_pause_reason_stored_in_flags() {
     let (client, _admin, _token, _token_admin) = setup_program(&env, 0);
 
     let reason = String::from_str(&env, "Security incident");
-    client.set_paused(&Some(true), &None, &None, &Some(reason.clone()));
+    client.set_paused(&Some(true), &None, &None, &Some(reason.clone()), &None);
 
     let flags = client.get_pause_flags();
     assert_eq!(flags.pause_reason, Some(reason));
@@ -4400,8 +4400,8 @@ fn test_pause_reason_cleared_on_full_unpause() {
     let (client, _admin, _token, _token_admin) = setup_program(&env, 0);
 
     let reason = String::from_str(&env, "Temporary halt");
-    client.set_paused(&Some(true), &None, &None, &Some(reason));
-    client.set_paused(&Some(false), &None, &None, &None);
+    client.set_paused(&Some(true), &None, &None, &Some(reason), &None);
+    client.set_paused(&Some(false), &None, &None, &None, &None);
 
     let flags = client.get_pause_flags();
     assert_eq!(

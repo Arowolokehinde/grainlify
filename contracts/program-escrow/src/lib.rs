@@ -694,6 +694,18 @@ pub struct ProgramData {
     pub circuit_breaker_threshold: Option<u8>,
 }
 
+/// Program delegate audit record used for bulk reporting and indexer views.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProgramDelegateInfo {
+    /// Program identifier
+    pub program_id: String,
+    /// Currently assigned delegate (if any)
+    pub delegate: Option<Address>,
+    /// Delegate permission bitmask
+    pub permissions: u32,
+}
+
 // ========================================================================
 // Dispute Resolution Types
 // ========================================================================
@@ -1360,6 +1372,8 @@ pub struct PauseStateChangedV2 {
     pub reason: Option<String>,
     pub timestamp: u64,
     pub receipt_id: u64,
+    /// Storage schema version for pause-related data (written at init).
+    pub schema_version: u32,
 }
 
 /// Emitted when a pause mode is automatically cleared because its TTL expired.
@@ -4064,6 +4078,7 @@ impl ProgramEscrowContract {
                     reason: reason.clone(),
                     timestamp,
                     receipt_id,
+                    schema_version: PAUSE_SCHEMA_VERSION_V1,
                 },
             );
         }
@@ -4095,6 +4110,7 @@ impl ProgramEscrowContract {
                     reason: reason.clone(),
                     timestamp,
                     receipt_id,
+                    schema_version: PAUSE_SCHEMA_VERSION_V1,
                 },
             );
         }
@@ -4126,6 +4142,7 @@ impl ProgramEscrowContract {
                     reason: reason.clone(),
                     timestamp,
                     receipt_id,
+                    schema_version: PAUSE_SCHEMA_VERSION_V1,
                 },
             );
         }
@@ -7070,6 +7087,84 @@ impl ProgramEscrowContract {
             }
         }
         results
+    }
+
+    /// Query program delegates for a set of registered programs (paginated).
+    ///
+    /// This returns a vector of `ProgramDelegateInfo` records for the requested
+    /// slice of entries from the internal `PROGRAM_REGISTRY`.
+    pub fn query_program_delegates(
+        env: Env,
+        offset: Option<u32>,
+        limit: Option<u32>,
+    ) -> soroban_sdk::Vec<ProgramDelegateInfo> {
+        let registry: soroban_sdk::Vec<String> = env
+            .storage()
+            .instance()
+            .get(&PROGRAM_REGISTRY)
+            .unwrap_or(Vec::new(&env));
+
+        let total = registry.len();
+        let offset = offset.unwrap_or(0);
+        let limit = limit.unwrap_or(total);
+
+        // Validate pagination params conservatively: return empty vec on bad params
+        if offset > total || limit == 0 {
+            return Vec::new(&env);
+        }
+
+        let end = if offset + limit > total { total } else { offset + limit };
+        let mut result = Vec::new(&env);
+        for i in offset..end {
+            let pid = registry.get(i).unwrap();
+            let program_data = Self::get_program_data_by_id(&env, &pid);
+            result.push_back(ProgramDelegateInfo {
+                program_id: pid.clone(),
+                delegate: program_data.delegate.clone(),
+                permissions: program_data.delegate_permissions,
+            });
+        }
+        result
+    }
+
+    /// Query the currently assigned delegate(s) and permissions for a single program.
+    ///
+    /// This read-only helper is designed for compliance auditing and permission
+    /// reporting. It returns an empty vector when the program does not exist or
+    /// when there is no active delegate assigned to the requested program.
+    pub fn query_all_delegates(
+        env: Env,
+        program_id: String,
+    ) -> soroban_sdk::Vec<ProgramDelegateInfo> {
+        let program_key = DataKey::Program(program_id.clone());
+        let program_data_opt = if env.storage().instance().has(&program_key) {
+            Some(env.storage().instance().get(&program_key).unwrap())
+        } else if env.storage().instance().has(&PROGRAM_DATA) {
+            let program_data: ProgramData = env
+                .storage()
+                .instance()
+                .get(&PROGRAM_DATA)
+                .unwrap();
+            if program_data.program_id == program_id {
+                Some(program_data)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let mut result = Vec::new(&env);
+        if let Some(program_data) = program_data_opt {
+            if let Some(delegate) = program_data.delegate {
+                result.push_back(ProgramDelegateInfo {
+                    program_id,
+                    delegate: Some(delegate),
+                    permissions: program_data.delegate_permissions,
+                });
+            }
+        }
+        result
     }
 
     pub fn get_program_release_schedule(env: Env, schedule_id: u64) -> ProgramReleaseSchedule {
